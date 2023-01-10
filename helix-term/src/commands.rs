@@ -430,6 +430,7 @@ impl MappableCommand {
         paste_primary_clipboard_before, "Paste primary clipboard before selections",
         indent, "Indent selection",
         unindent, "Unindent selection",
+        set_indent, "Set indent of selection",
         format_selections, "Format selection",
         join_selections, "Join lines inside selection",
         join_selections_space, "Join lines inside selection and select spaces",
@@ -4474,6 +4475,54 @@ fn unindent(cx: &mut Context) {
 
     doc.apply(&transaction, view.id);
     exit_select_mode(cx);
+}
+
+fn set_indent(cx: &mut Context) {
+    let (view, doc) = current!(cx.editor);
+    let lines = get_lines(doc, view.id);
+
+    let text = doc.text().slice(..);
+
+    if let (Some(query), Some(syntax)) = (
+        doc.language_config()
+            .and_then(|config| config.indent_query()),
+        doc.syntax(),
+    ) {
+        let transaction = Transaction::change(
+            doc.text(),
+            lines.into_iter().filter_map(|line| {
+                let off = text.line(line).first_non_whitespace_char()?;
+                let line_start = text.line_to_char(line);
+
+                indent::treesitter_indent_for_pos(
+                    query,
+                    syntax,
+                    doc.tab_width(),
+                    doc.indent_width(),
+                    text,
+                    line,
+                    line_start + off,
+                    false,
+                )
+                .and_then(|new_indent| {
+                    let new_indent_string =
+                        new_indent.to_string(&doc.indent_style, doc.tab_width());
+                    if new_indent_string != text.slice(line_start..line_start + off) {
+                        Some((
+                            line_start,
+                            line_start + off,
+                            Some(Tendril::from(new_indent_string)),
+                        ))
+                    } else {
+                        None
+                    }
+                })
+            }),
+        );
+        doc.apply(&transaction, view.id);
+    } else {
+        cx.editor.set_error("Cannot indent current language");
+    }
 }
 
 fn format_selections(cx: &mut Context) {
