@@ -554,6 +554,7 @@ impl MappableCommand {
         surround_add, "Surround add",
         surround_replace, "Surround replace",
         surround_delete, "Surround delete",
+        select_in_word, "Seleect in word",
         select_textobject_around, "Select around object",
         select_textobject_inner, "Select inside object",
         goto_next_function, "Goto next function",
@@ -5952,6 +5953,18 @@ fn select_textobject_around(cx: &mut Context) {
 
 fn select_textobject_inner(cx: &mut Context) {
     select_textobject(cx, textobject::TextObject::Inside);
+}
+
+fn select_in_word(cx: &mut Context) {
+    let count = cx.count();
+    let (view, doc) = current!(cx.editor);
+    let text = doc.text().slice(..);
+
+    let selection = doc.selection(view.id).clone().transform(|range| {
+        textobject::textobject_word(text, range, textobject::TextObject::Inside, count, false)
+    });
+
+    doc.set_selection(view.id, selection);
 }
 
 fn select_textobject(cx: &mut Context, objtype: textobject::TextObject) {
